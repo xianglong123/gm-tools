@@ -35,6 +35,7 @@
     <a class="nav-item active" data-panel="sm2">SM2 加解密</a>
     <a class="nav-item" data-panel="sign">SM2 签名验签</a>
     <a class="nav-item" data-panel="rsa">RSA 加解密 / 签名</a>
+    <a class="nav-item" data-panel="keygen">密钥对生成</a>
 
     <div class="nav-group">摘要 · 编码 · 封装</div>
     <a class="nav-item" data-panel="hash">摘要 / HMAC</a>
@@ -397,6 +398,84 @@
     </section>
 
     <!-- ===================== SM4 ===================== -->
+    <!-- ===================== 密钥对生成 ===================== -->
+    <section class="panel hidden" data-panel="keygen">
+      <div class="panel-head">
+        <h2>密钥对生成</h2>
+        <p class="lead">RSA / SM2 / Ed25519 密钥对，全部在浏览器里生成，私钥不出本机。导出的是能直接导入 Java、网关、OpenSSL 的标准 PEM。</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>参数 <span class="flow">浏览器 CSPRNG</span></h3>
+        </div>
+        <div class="kv">
+          <label>算法</label>
+          <select id="keygen-alg" class="sel">
+            <option value="rsa2048" selected>RSA-2048（兼容性最好，接口对接首选）</option>
+            <option value="rsa3072">RSA-3072</option>
+            <option value="rsa4096">RSA-4096（生成要 5–20 秒，耐心等）</option>
+            <option value="sm2">SM2（GB/T 32918，国密）</option>
+            <option value="ed25519">Ed25519（纯签名用途，需较新浏览器）</option>
+          </select>
+        </div>
+        <div class="kv">
+          <label>私钥格式</label>
+          <select id="keygen-priv-fmt" class="sel">
+            <option value="pkcs8" selected>PKCS#8 PEM（BEGIN PRIVATE KEY）</option>
+            <option value="pkcs1">PKCS#1 PEM（BEGIN RSA PRIVATE KEY，仅 RSA）</option>
+            <option value="hex">裸 HEX</option>
+          </select>
+        </div>
+        <div class="kv">
+          <label>公钥格式</label>
+          <select id="keygen-pub-fmt" class="sel">
+            <option value="spki" selected>SPKI PEM（BEGIN PUBLIC KEY）</option>
+            <option value="pkcs1">PKCS#1 PEM（BEGIN RSA PUBLIC KEY，仅 RSA）</option>
+            <option value="hex">裸 HEX</option>
+          </select>
+        </div>
+        <div class="row">
+          <span class="hint" id="keygen-meta">选好参数后点「生成」</span>
+          <button class="btn primary" id="keygen-gen">生成 →</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>私钥 <span class="flow">不要外传</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-copy="keygen-priv">复制</button>
+            <button class="mini" id="keygen-dl-priv">下载</button>
+          </div>
+        </div>
+        <textarea id="keygen-priv" class="out mono" rows="8" readonly placeholder="生成后显示在这里"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>公钥</h3>
+          <div class="card-tools">
+            <button class="mini" data-copy="keygen-pub">复制</button>
+            <button class="mini" id="keygen-dl-pub">下载</button>
+          </div>
+        </div>
+        <textarea id="keygen-pub" class="out mono" rows="8" readonly placeholder="生成后显示在这里"></textarea>
+        <p class="hint" id="keygen-fp">公钥指纹会显示在这里</p>
+      </div>
+
+      <div class="card">
+        <h3>导出去哪用</h3>
+        <ul class="doc">
+          <li><b>Java / Spring Boot</b>：PKCS#8 私钥 + SPKI 公钥可直接给 BouncyCastle、Hutool；老接口只收 PKCS#1 就把格式切过去再导一次</li>
+          <li><b>OpenSSL</b>：<code>openssl pkey -in private.pem -noout -text</code> 能直接看出参数；SM2 的曲线 OID 已经写进算法标识，不用再加 <code>-ec_paramgen_curve</code></li>
+          <li><b>核对密钥</b>：底部 SHA256 指纹与 <code>ssh-keygen -lf</code> 的输出格式一致，用来确认两地是不是同一把密钥</li>
+          <li><b>RSA 用途</b>：导出的 PEM 是通用 RSA 密钥，加密（OAEP / PKCS#1）和签名（PKCS#1 / PSS）都能用，不受生成时用途限制</li>
+          <li><b>安全边界</b>：密钥在你本机浏览器里生成，页面不发任何请求；但浏览器 CSPRNG 不等于 HSM，生产长期主密钥仍应由 KMS / 密码机生成</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel hidden" data-panel="sm4">
       <div class="panel-head">
         <h2>SM4 加解密</h2>

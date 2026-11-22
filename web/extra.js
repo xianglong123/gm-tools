@@ -45,7 +45,7 @@ function concatBytes(...arrs) {
 function bytesToPem(bytes, label) {
   const b64 = bytesToB64(bytes);
   const lines = b64.match(/.{1,64}/g) || [];
-  return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----`;
+  return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----\n`;
 }
 
 /* ============================================================ 摘要 / HMAC */
@@ -548,6 +548,149 @@ $("#rsaGenKey").addEventListener("click", (e) =>
   })
 );
 
+/* ============================================================ 密钥对生成 */
+
+/* SM2 的 AlgorithmIdentifier：OpenSSL / BouncyCastle 都是 id-ecPublicKey + sm2 双 OID */
+const EC_PUBLIC_KEY_OID = Uint8Array.of(0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01);
+const SM2_CURVE_OID = Uint8Array.of(0x06, 0x08, 0x2a, 0x81, 0x1c, 0xcf, 0x55, 0x01, 0x82, 0x2d);
+
+function sm2AlgId() {
+  return derWrap(0x30, concatBytes(EC_PUBLIC_KEY_OID, SM2_CURVE_OID));
+}
+
+/* 由 hex 私钥 / 公钥构造标准 PKCS#8 与 SPKI，结构与 openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:SM2 一致 */
+function sm2DerKeyPair(privHex, pubHex) {
+  const priv = hexToBytes(privHex);
+  if (priv.length !== 32) throw new Error(`SM2 私钥应为 32 字节，当前 ${priv.length} 字节`);
+  const pub = hexToBytes(normPub(pubHex, "SM2 公钥"));
+
+  const ecPriv = derWrap(0x30, concatBytes(
+    Uint8Array.of(0x02, 0x01, 0x01),
+    derWrap(0x04, priv),
+    derWrap(0xa1, derWrap(0x03, concatBytes(Uint8Array.of(0x00), pub)))
+  ));
+
+  const pkcs8 = derWrap(0x30, concatBytes(Uint8Array.of(0x02, 0x01, 0x00), sm2AlgId(), derWrap(0x04, ecPriv)));
+  const spki = derWrap(0x30, concatBytes(sm2AlgId(), derWrap(0x03, concatBytes(Uint8Array.of(0x00), pub))));
+  return { pkcs8, spki };
+}
+
+async function sha256Fp(bytes) {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return "SHA256:" + bytesToB64(d).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function saveTextFile(name, text) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function syncKeygenFmt() {
+  const isRsa = $("#keygen-alg").value.startsWith("rsa");
+  ["keygen-priv-fmt", "keygen-pub-fmt"].forEach((id) => {
+    const sel = $("#" + id);
+    [...sel.options].forEach((o) => {
+      if (o.value === "pkcs1") o.disabled = !isRsa;
+    });
+    if (!isRsa && sel.value === "pkcs1") sel.value = "pkcs8";
+  });
+}
+
+$("#keygen-alg").addEventListener("change", syncKeygenFmt);
+
+$("#keygen-gen").addEventListener("click", (e) =>
+  runAsync(e.currentTarget, async () => {
+    const alg = $("#keygen-alg").value;
+    const privFmt = $("#keygen-priv-fmt").value;
+    const pubFmt = $("#keygen-pub-fmt").value;
+    const t0 = performance.now();
+
+    let privDer = null;
+    let pubDer = null;
+    let sm2Hex = null;
+    let label = "";
+
+    if (alg === "sm2") {
+      const kp = sm2lib.generateKeyPairHex();
+      const der = sm2DerKeyPair(kp.privateKey, kp.publicKey);
+      privDer = der.pkcs8;
+      pubDer = der.spki;
+      sm2Hex = { priv: kp.privateKey, pub: kp.publicKey };
+      label = "SM2";
+    } else if (alg === "ed25519") {
+      let kp;
+      try {
+        kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+      } catch (_) {
+        throw new Error("当前浏览器不支持 Ed25519（Chrome 113+ / Safari 17+ 才有），请改用 RSA 或 SM2");
+      }
+      privDer = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey));
+      pubDer = new Uint8Array(await crypto.subtle.exportKey("spki", kp.publicKey));
+      label = "Ed25519";
+    } else {
+      const bits = { rsa2048: 2048, rsa3072: 3072, rsa4096: 4096 }[alg];
+      if (bits === 4096) $("#keygen-meta").textContent = "正在生成 RSA-4096，可能要十几秒…";
+      const kp = await crypto.subtle.generateKey(
+        { name: "RSASSA-PKCS1-v1_5", modulusLength: bits, publicExponent: Uint8Array.of(1, 0, 1), hash: "SHA-256" },
+        true,
+        ["sign", "verify"]
+      );
+      privDer = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey));
+      pubDer = new Uint8Array(await crypto.subtle.exportKey("spki", kp.publicKey));
+      label = "RSA-" + bits;
+    }
+
+    const isRsa = alg.startsWith("rsa");
+    let privOut;
+    let pubOut;
+
+    if (privFmt === "hex") {
+      privOut = sm2Hex ? sm2Hex.priv : bytesToHex(privDer);
+    } else if (privFmt === "pkcs1") {
+      if (!isRsa) throw new Error("PKCS#1 是 RSA 专有格式，SM2 / Ed25519 请选 PKCS#8");
+      privOut = bytesToPem(parseKey(bytesToPem(privDer, "PRIVATE KEY")).pkcs1, "RSA PRIVATE KEY");
+    } else {
+      privOut = bytesToPem(privDer, "PRIVATE KEY");
+    }
+
+    if (pubFmt === "hex") {
+      pubOut = sm2Hex ? sm2Hex.pub : bytesToHex(pubDer);
+    } else if (pubFmt === "pkcs1") {
+      if (!isRsa) throw new Error("PKCS#1 是 RSA 专有格式，SM2 / Ed25519 请选 SPKI");
+      pubOut = bytesToPem(parseKey(bytesToPem(pubDer, "PUBLIC KEY")).pkcs1, "RSA PUBLIC KEY");
+    } else {
+      pubOut = bytesToPem(pubDer, "PUBLIC KEY");
+    }
+
+    setOut("keygen-priv", privOut);
+    setOut("keygen-pub", pubOut);
+
+    const fp = await sha256Fp(pubDer);
+    $("#keygen-fp").textContent = `公钥 SHA-256 指纹：${fp}`;
+    $("#keygen-meta").textContent = `${label} · ${(privDer.length)} 字节私钥 DER · ${(performance.now() - t0).toFixed(0)} ms`;
+    toast(`${label} 密钥对已生成`);
+  })
+);
+
+$("#keygen-dl-priv").addEventListener("click", () => {
+  const v = $("#keygen-priv").value;
+  if (!v) return toast("先生成密钥再下载", true);
+  saveTextFile(v.includes("-----BEGIN") ? "private.pem" : "private-key.txt", v);
+});
+
+$("#keygen-dl-pub").addEventListener("click", () => {
+  const v = $("#keygen-pub").value;
+  if (!v) return toast("先生成密钥再下载", true);
+  saveTextFile(v.includes("-----BEGIN") ? "public.pem" : "public-key.txt", v);
+});
+
 /* ============================================================ 编码转换 */
 
 const CODECS = {
@@ -778,6 +921,11 @@ $("#clearAll").addEventListener("click", () => {
     j.textContent = "等待验证";
   }
   $("#jwt-time").textContent = "解析后可查看签发与过期时间";
+
+  const fpEl = $("#keygen-fp");
+  if (fpEl) fpEl.textContent = "公钥指纹会显示在这里";
+  const metaEl = $("#keygen-meta");
+  if (metaEl) metaEl.textContent = "选好参数后点「生成」";
 });
 
 /* ============================================================ 启动 */
@@ -785,6 +933,7 @@ $("#clearAll").addEventListener("click", () => {
 try {
   syncAesIv();
   syncDesIv();
+  syncKeygenFmt();
   $("#codec-hint").textContent = CODEC_HINT[$("#codec-mode").value] || "";
 
   $("#aes-key").value = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
@@ -796,3 +945,17 @@ try {
 } catch (e) {
   console.error(e);
 }
+
+/* Ed25519 支持性探测：不支持的浏览器直接把选项置灰，避免点了才报错 */
+(async () => {
+  try {
+    await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
+  } catch (_) {
+    const opt = [...$("#keygen-alg").options].find((o) => o.value === "ed25519");
+    if (opt) {
+      opt.disabled = true;
+      opt.text = "Ed25519（当前浏览器不支持）";
+      if ($("#keygen-alg").value === "ed25519") $("#keygen-alg").value = "rsa2048";
+    }
+  }
+})();

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>国密工具箱 · SM2 / SM3 / SM4 在线加解密（本地计算）</title>
+<meta name="description" content="国密算法在线工具：SM2 加解密与签名验签、SM4 对称加解密（ECB/CBC）、SM3 摘要与 HMAC、数字信封。全部计算在浏览器本地完成，不上传任何数据，无需登录。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f6feb'/><text x='16' y='22' font-size='15' font-family='monospace' fill='white' text-anchor='middle'>SM</text></svg>">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <div class="logo">SM</div>
+    <div>
+      <h1>国密工具箱</h1>
+      <p>SM2 / SM3 / SM4 · 加解密 · 签名验签 · 数字信封</p>
+    </div>
+  </div>
+  <div class="top-right">
+    <span class="safe">🔒 本地计算，数据不出浏览器</span>
+    <button class="btn ghost small" id="clearAll">清空全部</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="side" id="nav">
+    <a class="nav-item active" data-panel="sm2">SM2 加解密</a>
+    <a class="nav-item" data-panel="sign">SM2 签名验签</a>
+    <a class="nav-item" data-panel="sm4">SM4 加解密</a>
+    <a class="nav-item" data-panel="sm3">SM3 摘要</a>
+    <a class="nav-item" data-panel="envelope">数字信封</a>
+    <a class="nav-item" data-panel="about">格式与兼容</a>
+  </nav>
+
+  <main id="main">
+
+    <!-- ===================== SM2 ===================== -->
+    <section class="panel" data-panel="sm2">
+      <div class="panel-head">
+        <h2>SM2 加解密</h2>
+        <p class="lead">非对称加密，GB/T 32918 标准。公私钥格式与密文顺序是联调时最容易出错的地方，下面两个选项可以直接切换。</p>
+      </div>
+
+      <div class="card keys">
+        <div class="card-head">
+          <h3>密钥对</h3>
+          <div class="card-tools">
+            <button class="mini" id="genKey">生成新密钥对</button>
+            <button class="mini" id="pubFromPriv">由私钥推公钥</button>
+          </div>
+        </div>
+        <div class="kv">
+          <label>公钥 <span class="dim">（hex，支持 04 前缀 / 无前缀 / 压缩）</span></label>
+          <textarea id="sm2-pub" rows="2" spellcheck="false" placeholder="04 + 64 字节十六进制，或直接粘贴 128 位裸公钥"></textarea>
+        </div>
+        <div class="kv">
+          <label>私钥 <span class="dim">（hex，64 位）</span></label>
+          <textarea id="sm2-priv" rows="2" spellcheck="false" placeholder="私钥仅在本页内存中使用，刷新即消失"></textarea>
+        </div>
+        <div class="opts">
+          <div class="opt-group">
+            <span class="opt-label">密文顺序</span>
+            <label class="radio"><input type="radio" name="sm2mode" value="1" checked> C1C3C2 <span class="dim">（GB/T 32918、BouncyCastle 默认）</span></label>
+            <label class="radio"><input type="radio" name="sm2mode" value="0"> C1C2C3 <span class="dim">（部分老系统/国密网关）</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>加密 <span class="flow">明文 → 密文</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="sm2-ct">复制密文</button></div>
+        </div>
+        <textarea id="sm2-plain" placeholder="要加密的文本…"></textarea>
+        <div class="row">
+          <span class="hint" id="sm2-plain-len">SM2 加密大段文本很慢，超过 1000 字建议用「数字信封」</span>
+          <button class="btn primary" id="sm2-encrypt">加密 →</button>
+        </div>
+        <textarea id="sm2-ct" class="out" readonly placeholder="密文（hex）"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>解密 <span class="flow">密文 → 明文</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-fill-from="sm2-ct" data-target="sm2-ct-in">取上方密文</button>
+            <button class="mini" data-copy="sm2-pt">复制明文</button>
+          </div>
+        </div>
+        <textarea id="sm2-ct-in" placeholder="粘贴密文（hex）"></textarea>
+        <div class="row">
+          <span class="hint">C1C3C2 / C1C2C3 选错时会解出乱码或空</span>
+          <button class="btn primary" id="sm2-decrypt">解密 →</button>
+        </div>
+        <textarea id="sm2-pt" class="out" readonly placeholder="明文"></textarea>
+      </div>
+    </section>
+
+    <!-- ===================== 签名 ===================== -->
+    <section class="panel hidden" data-panel="sign">
+      <div class="panel-head">
+        <h2>SM2 签名与验签</h2>
+        <p class="lead">签名先对消息做 SM3 摘要（含用户标识 Z 值），再走 SM2 签名。默认输出 128 位 hex 签名串，也支持 DER 编码。</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>签名 <span class="flow">消息 + 私钥 → 签名</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="sign-out">复制签名</button></div>
+        </div>
+        <textarea id="sign-msg" placeholder="待签名的消息（原文）"></textarea>
+        <div class="kv">
+          <label>私钥</label>
+          <textarea id="sign-priv" rows="2" spellcheck="false" placeholder="hex 私钥；留空则用上方 SM2 页的私钥"></textarea>
+        </div>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="sign-der"> 输出 DER 编码</label>
+          <button class="btn primary" id="doSign">签名 →</button>
+        </div>
+        <textarea id="sign-out" class="out" readonly placeholder="签名串（hex）"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>验签 <span class="flow">消息 + 签名 + 公钥 → 结果</span></h3>
+          <div class="card-tools"><button class="mini" data-fill-from="sign-out" data-target="verify-sig">取上方签名</button></div>
+        </div>
+        <textarea id="verify-msg" placeholder="待验签的消息"></textarea>
+        <div class="kv">
+          <label>公钥</label>
+          <textarea id="verify-pub" rows="2" spellcheck="false" placeholder="hex 公钥；留空则用上方 SM2 页的公钥"></textarea>
+        </div>
+        <div class="kv">
+          <label>签名</label>
+          <textarea id="verify-sig" rows="3" spellcheck="false" placeholder="hex / DER 签名串"></textarea>
+        </div>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="verify-der"> 签名是 DER 编码</label>
+          <button class="btn primary" id="doVerify">验签 →</button>
+        </div>
+        <div class="result" id="verify-result">等待验证</div>
+      </div>
+    </section>
+
+    <!-- ===================== SM4 ===================== -->
+    <section class="panel hidden" data-panel="sm4">
+      <div class="panel-head">
+        <h2>SM4 加解密</h2>
+        <p class="lead">分组长度与密钥长度均为 128 位，GB/T 32907 标准。支持 ECB / CBC，PKCS#7 填充，输出 hex 或 base64。</p>
+      </div>
+
+      <div class="card keys">
+        <div class="card-head">
+          <h3>参数</h3>
+          <div class="card-tools"><button class="mini" id="genSm4Key">生成随机密钥</button></div>
+        </div>
+        <div class="kv">
+          <label>密钥 <span class="dim">（16 字节，32 位 hex）</span></label>
+          <textarea id="sm4-key" rows="2" spellcheck="false" placeholder="0123456789abcdeffedcba9876543210"></textarea>
+        </div>
+        <div class="kv" id="sm4-iv-wrap">
+          <label>IV <span class="dim">（CBC 需要，16 字节）</span></label>
+          <textarea id="sm4-iv" rows="2" spellcheck="false" placeholder="000102030405060708090a0b0c0d0e0f"></textarea>
+        </div>
+        <div class="opts">
+          <div class="opt-group">
+            <span class="opt-label">模式</span>
+            <label class="radio"><input type="radio" name="sm4mode" value="cbc" checked> CBC</label>
+            <label class="radio"><input type="radio" name="sm4mode" value="ecb"> ECB <span class="dim">（无 IV）</span></label>
+          </div>
+          <div class="opt-group">
+            <span class="opt-label">填充</span>
+            <label class="radio"><input type="radio" name="sm4pad" value="pkcs#7" checked> PKCS#7</label>
+            <label class="radio"><input type="radio" name="sm4pad" value="none"> 无填充 <span class="dim">（仅 hex 输入）</span></label>
+          </div>
+          <div class="opt-group">
+            <span class="opt-label">输出</span>
+            <label class="radio"><input type="radio" name="sm4out" value="hex" checked> hex</label>
+            <label class="radio"><input type="radio" name="sm4out" value="base64"> base64</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>加密 <span class="flow">明文 → 密文</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-copy="sm4-ct">复制密文</button>
+          </div>
+        </div>
+        <textarea id="sm4-plain" placeholder="要加密的文本（无填充模式下请填 hex）"></textarea>
+        <div class="row">
+          <span class="hint" id="sm4-plain-len"></span>
+          <button class="btn primary" id="sm4-encrypt">加密 →</button>
+        </div>
+        <textarea id="sm4-ct" class="out" readonly placeholder="密文"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>解密 <span class="flow">密文 → 明文</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-fill-from="sm4-ct" data-target="sm4-ct-in">取上方密文</button>
+            <button class="mini" data-copy="sm4-pt">复制明文</button>
+          </div>
+        </div>
+        <textarea id="sm4-ct-in" placeholder="粘贴密文"></textarea>
+        <div class="row">
+          <span class="hint">密文格式自动识别 hex / base64</span>
+          <button class="btn primary" id="sm4-decrypt">解密 →</button>
+        </div>
+        <textarea id="sm4-pt" class="out" readonly placeholder="明文"></textarea>
+      </div>
+    </section>
+
+    <!-- ===================== SM3 ===================== -->
+    <section class="panel hidden" data-panel="sm3">
+      <div class="panel-head">
+        <h2>SM3 摘要</h2>
+        <p class="lead">256 位摘要，GB/T 32905 标准。用于完整性校验、口令派生、HMAC。</p>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>计算摘要 <span class="flow">文本 → 32 字节 hash</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="sm3-out">复制</button></div>
+        </div>
+        <textarea id="sm3-in" placeholder="输入要计算摘要的文本…"></textarea>
+        <div class="kv">
+          <label>HMAC 密钥 <span class="dim">（可留空，留空则算普通 SM3）</span></label>
+          <input type="text" id="sm3-hmac-key" class="line" spellcheck="false" placeholder="留空即为 SM3(明文)">
+        </div>
+        <div class="row">
+          <span class="hint">结果 64 位 hex，与国密标准一致</span>
+          <button class="btn primary" id="doSm3">计算 →</button>
+        </div>
+        <textarea id="sm3-out" class="out mono" readonly placeholder="摘要"></textarea>
+      </div>
+    </section>
+
+    <!-- ===================== 数字信封 ===================== -->
+    <section class="panel hidden" data-panel="envelope">
+      <div class="panel-head">
+        <h2>数字信封</h2>
+        <p class="lead">长文本用 SM4 加密，SM4 密钥再用 SM2 公钥加密——这是国密应用里最常用的组合（信封加密）。一次可以处理任意长度的文本。</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>加密 <span class="flow">明文 → 信封</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="env-out">复制信封</button></div>
+        </div>
+        <textarea id="env-plain" rows="5" placeholder="任意长度的文本，可以直接粘一整个文件内容"></textarea>
+        <div class="kv">
+          <label>接收方公钥 <span class="dim">（留空则用 SM2 页的公钥）</span></label>
+          <textarea id="env-pub" rows="2" spellcheck="false" placeholder="hex 公钥"></textarea>
+        </div>
+        <div class="row">
+          <span class="hint">随机生成 SM4 会话密钥 + IV，每次结果都不同</span>
+          <button class="btn primary" id="env-seal">封装 →</button>
+        </div>
+        <textarea id="env-out" class="out mono" readonly placeholder="信封（JSON，可直接发给对方）"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>解密 <span class="flow">信封 → 明文</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-fill-from="env-out" data-target="env-in">取上方信封</button>
+            <button class="mini" data-copy="env-pt">复制明文</button>
+          </div>
+        </div>
+        <textarea id="env-in" rows="5" class="mono" placeholder="粘贴信封 JSON"></textarea>
+        <div class="kv">
+          <label>接收方私钥 <span class="dim">（留空则用 SM2 页的私钥）</span></label>
+          <textarea id="env-priv" rows="2" spellcheck="false" placeholder="hex 私钥"></textarea>
+        </div>
+        <div class="row">
+          <span class="hint">用错私钥会提示解封失败，不会输出乱码</span>
+          <button class="btn primary" id="env-open">解封 →</button>
+        </div>
+        <textarea id="env-pt" class="out" readonly placeholder="明文"></textarea>
+      </div>
+    </section>
+
+    <!-- ===================== 关于 ===================== -->
+    <section class="panel hidden" data-panel="about">
+      <div class="panel-head">
+        <h2>格式与兼容</h2>
+        <p class="lead">国密联调 90% 的坑都在格式上，这里集中说明。</p>
+      </div>
+
+      <div class="card">
+        <h3>SM2 公钥</h3>
+        <ul class="doc">
+          <li><b>04 + X + Y（130 hex）</b>：标准未压缩格式，BouncyCastle、Hutool 默认输出</li>
+          <li><b>X + Y（128 hex）</b>：很多网关和 SDK 会省掉 04 前缀，本页会自动补上</li>
+          <li><b>02/03 + X（66 hex）</b>：压缩格式，本页直接支持</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>SM2 密文顺序</h3>
+        <ul class="doc">
+          <li><b>C1C3C2</b>：GB/T 32918 推荐、BouncyCastle 默认，新项目优先用这个</li>
+          <li><b>C1C2C3</b>：老版本硬件加密机、部分国密网关在用</li>
+          <li>顺序选错不会报错，只会解出空串或乱码——所以本页把选项放在了密钥区最显眼的位置</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>SM4</h3>
+        <ul class="doc">
+          <li>密钥固定 16 字节；ECB 不需要 IV，CBC 必须 16 字节 IV</li>
+          <li>填充默认 PKCS#7，与 Java <code>Sm4Util</code>、国密网关一致</li>
+          <li>无填充模式只接受 16 字节整数倍的 hex 明文，用于验证标准向量</li>
+          <li>本页输出的密文为 hex；base64 密文可直接粘贴到解密框，会自动识别</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>关于这个工具</h3>
+        <ul class="doc">
+          <li>全部运算在浏览器里完成，请求里没有任何密钥或明文，服务器只返回静态页面</li>
+          <li>无后端、无数据库、无账号、无 cookie；关闭或刷新页面，输入内容即消失</li>
+          <li>算法实现为 sm-crypto 0.3.13（本地引入，不走 CDN），已用 GB/T 32905 / 32907 标准向量校验</li>
+          <li>仅供调试与学习使用，生产环境的密钥管理请交给 HSM / KMS</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="vendor/sm2.js"></script>
+<script src="vendor/sm3.js"></script>
+<script src="vendor/sm4.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

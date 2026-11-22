@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>证书与密钥库解析 · PEM / DER / JKS 在线查看（本地解析，不上传）</title>
+<meta name="description" content="粘贴或上传 X.509 证书（PEM/DER）与 JKS 密钥库，本地解析主体、颁发者、有效期、密钥用法、SAN、证书链完整性。不上传、不联网。">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="cert.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <div class="logo">CRT</div>
+    <div>
+      <h1>证书与密钥库解析</h1>
+      <p>PEM · DER · JKS · 国密证书 · 链完整性</p>
+    </div>
+  </div>
+  <div class="top-right">
+    <span class="safe">本地解析 · 文件不出浏览器</span>
+    <a class="btn ghost small" href="../">← 加解密工具箱</a>
+  </div>
+</header>
+
+<div class="layout" style="display:block">
+  <main>
+
+    <!-- 输入 -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>粘贴或丢一个证书进来</h2>
+        <p class="lead">支持 <b>PEM</b>（可多段，证书链直接整段贴）、<b>DER</b> 二进制、<b>JKS/JKS2</b> 密钥库。文件只在你的浏览器里被读取和解码，不会发送到任何服务器。</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>证书内容<span class="flow">不上传</span></h3>
+          <div class="card-tools">
+            <button class="mini" id="btnSample">填个示例</button>
+            <button class="mini" id="btnClear">清空</button>
+          </div>
+        </div>
+        <textarea id="input" class="mono" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----
+MIID...
+-----END CERTIFICATE-----
+
+或直接把 .pem / .crt / .cer / .der / .jks 文件拖到下面的框里"></textarea>
+
+        <div class="drop" id="drop">
+          <span>拖文件到这里，或 <b>点击选择</b></span>
+          <span class="hint">.pem .crt .cer .der .jks .keystore / 单文件，最多 2MB</span>
+          <input type="file" id="file" accept=".pem,.crt,.cer,.der,.jks,.keystore,.txt,.pfx,.p12" hidden>
+        </div>
+
+        <div class="row">
+          <span class="hint" id="status">还没有内容</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn ghost" id="btnDownloadAll">导出全部 PEM</button>
+            <button class="btn primary" id="btnGo">解析</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 结果 -->
+      <div id="chainBar" class="chainbar hidden"></div>
+      <div id="notes" class="notebox hidden"></div>
+      <div id="list"></div>
+
+      <!-- 说明 -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-head"><h3>这个工具做什么、不做什么</h3></div>
+        <ul class="doc">
+          <li><b>做</b>：把证书里那些字段用人话摊开 —— 谁签的、给谁签的、能用到哪天、这把公钥能干什么、域名对不对、链有没有断。</li>
+          <li><b>不做</b>：不连网校验证书（不查 OCSP/CRL），所以「有效期正常」不等于「证书没被吊销」；不解析 PFX/P12；不碰私钥。</li>
+          <li><b>为什么是纯前端</b>：证书里含公钥、组织名、内网域名，交给别人的服务器解析就等于把这些信息给出去了。这里全程 <code>FileReader</code> + 本地 DER 解码。</li>
+          <li><b>典型用途</b>：线上 TLS 握手失败、Java 报 <code>PKIX path building failed</code>、国密证书字段看不懂、核对两边部署的是不是同一张证书。</li>
+        </ul>
+      </div>
+
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="cert.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>

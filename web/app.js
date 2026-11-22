@@ -326,16 +326,28 @@ function hmacSm3(msg, key) {
   return sm3hash(outer);
 }
 
+/* 摘要面板：算法由 #hash-alg 决定，具体实现见 extra.js 的 hashHex / hmacHex */
 $("#doSm3").addEventListener("click", () =>
   guard($("#doSm3"), () => {
     const msg = $("#sm3-in").value;
     if (!msg) throw new Error("请输入要计算摘要的文本");
     const key = $("#sm3-hmac-key").value;
-    const out = key ? hmacSm3(msg, key) : sm3hash(msg);
+    const alg = ($("#hash-alg") || {}).value || "sm3";
+    const label = hashLabel(alg);
+    const out = key ? hmacHex(alg, msg, key) : hashHex(alg, msg);
     setOut("sm3-out", out);
-    toast(key ? "HMAC-SM3 计算完成" : "SM3 摘要计算完成");
+    toast(`${key ? "HMAC-" : ""}${label} 完成 · ${out.length / 2} 字节`);
   })
 );
+
+if ($("#hash-alg")) {
+  $("#hash-alg").addEventListener("change", () => {
+    const alg = $("#hash-alg").value;
+    const bits = { sm3: 256, sha256: 256, sha512: 512, sha384: 384, sha1: 160, md5: 128 }[alg];
+    $("#hash-hint").textContent = `${hashLabel(alg)} 输出 ${bits} 位（${bits / 4} 位 hex）`;
+    setOut("sm3-out", "");
+  });
+}
 
 /* ============================================================ 数字信封 */
 

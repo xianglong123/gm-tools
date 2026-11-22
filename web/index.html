@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>国密工具箱 · SM2 / SM3 / SM4 在线加解密（本地计算）</title>
-<meta name="description" content="国密算法在线工具：SM2 加解密与签名验签、SM4 对称加解密（ECB/CBC）、SM3 摘要与 HMAC、数字信封。全部计算在浏览器本地完成，不上传任何数据，无需登录。">
+<title>加解密工具箱 · AES / RSA / SM2 / SM4 在线加解密与验签（本地计算）</title>
+<meta name="description" content="在线加解密工具箱：AES（CBC/CTR/GCM）、DES/3DES、RSA（PKCS#1/OAEP/PSS）、SM2 加解密与签名验签、SM4、SM3/SHA 摘要与 HMAC、Base64/Hex/URL 编码、JWT 解析验签、数字信封。全部计算在浏览器本地完成，不上传任何数据，无需登录。">
 <link rel="stylesheet" href="style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f6feb'/><text x='16' y='22' font-size='15' font-family='monospace' fill='white' text-anchor='middle'>SM</text></svg>">
 </head>
@@ -14,8 +14,8 @@
   <div class="brand">
     <div class="logo">SM</div>
     <div>
-      <h1>国密工具箱</h1>
-      <p>SM2 / SM3 / SM4 · 加解密 · 签名验签 · 数字信封</p>
+      <h1>加解密工具箱</h1>
+      <p>AES · 3DES · RSA · SM2 · SM4 · 摘要 · JWT</p>
     </div>
   </div>
   <div class="top-right">
@@ -26,15 +26,174 @@
 
 <div class="layout">
   <nav class="side" id="nav">
+    <div class="nav-group">对称加密</div>
+    <a class="nav-item" data-panel="aes">AES 加解密</a>
+    <a class="nav-item" data-panel="des">DES / 3DES</a>
+    <a class="nav-item" data-panel="sm4">SM4 加解密</a>
+
+    <div class="nav-group">非对称加密</div>
     <a class="nav-item active" data-panel="sm2">SM2 加解密</a>
     <a class="nav-item" data-panel="sign">SM2 签名验签</a>
-    <a class="nav-item" data-panel="sm4">SM4 加解密</a>
-    <a class="nav-item" data-panel="sm3">SM3 摘要</a>
+    <a class="nav-item" data-panel="rsa">RSA 加解密 / 签名</a>
+
+    <div class="nav-group">摘要 · 编码 · 封装</div>
+    <a class="nav-item" data-panel="hash">摘要 / HMAC</a>
+    <a class="nav-item" data-panel="codec">编码转换</a>
     <a class="nav-item" data-panel="envelope">数字信封</a>
+
+    <div class="nav-group">其他</div>
+    <a class="nav-item" data-panel="jwt">JWT 解析</a>
     <a class="nav-item" data-panel="about">格式与兼容</a>
   </nav>
 
   <main id="main">
+
+    <!-- ===================== AES ===================== -->
+    <section class="panel hidden" data-panel="aes">
+      <div class="panel-head">
+        <h2>AES 加解密</h2>
+        <p class="lead">生产环境最常用的对称加密。支持 128 / 192 / 256 位密钥，CBC / ECB / CTR / CFB / OFB / GCM 六种模式。</p>
+      </div>
+
+      <div class="card keys">
+        <div class="card-head">
+          <h3>参数</h3>
+          <div class="card-tools"><button class="mini" id="genAesKey">生成随机密钥</button></div>
+        </div>
+        <div class="kv">
+          <label>密钥 <span class="dim">（hex：32 / 48 / 64 位，对应 128 / 192 / 256 位）</span></label>
+          <textarea id="aes-key" rows="2" spellcheck="false" placeholder="00112233445566778899aabbccddeeff"></textarea>
+        </div>
+        <div class="kv" id="aes-iv-wrap">
+          <label>IV <span class="dim">（CBC / CTR / CFB / OFB 需 16 字节；GCM 需 12 字节；ECB 不用）</span></label>
+          <textarea id="aes-iv" rows="2" spellcheck="false" placeholder="000102030405060708090a0b0c0d0e0f"></textarea>
+        </div>
+        <div class="opts">
+          <div class="opt-group">
+            <span class="opt-label">模式</span>
+            <select id="aes-mode" class="sel">
+              <option value="cbc" selected>CBC</option>
+              <option value="ecb">ECB</option>
+              <option value="ctr">CTR</option>
+              <option value="cfb">CFB</option>
+              <option value="ofb">OFB</option>
+              <option value="gcm">GCM（带认证）</option>
+            </select>
+          </div>
+          <div class="opt-group">
+            <span class="opt-label">填充</span>
+            <label class="radio"><input type="radio" name="aespad" value="pkcs7" checked> PKCS#7</label>
+            <label class="radio"><input type="radio" name="aespad" value="none"> 无填充 <span class="dim">（hex 输入）</span></label>
+          </div>
+          <div class="opt-group">
+            <span class="opt-label">输出</span>
+            <label class="radio"><input type="radio" name="aesout" value="hex" checked> hex</label>
+            <label class="radio"><input type="radio" name="aesout" value="base64"> base64</label>
+          </div>
+        </div>
+        <p class="hint" id="aes-hint">CTR / CFB / OFB / GCM 是流模式，不需要填充；GCM 密文尾部自带 16 字节认证标签，解密失败会明确提示。</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>加密 <span class="flow">明文 → 密文</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="aes-ct">复制密文</button></div>
+        </div>
+        <textarea id="aes-plain" placeholder="要加密的文本（无填充模式请填 hex）"></textarea>
+        <div class="row">
+          <span class="hint" id="aes-plain-len"></span>
+          <button class="btn primary" id="aes-encrypt">加密 →</button>
+        </div>
+        <textarea id="aes-ct" class="out mono" readonly placeholder="密文"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>解密 <span class="flow">密文 → 明文</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-fill-from="aes-ct" data-target="aes-ct-in">取上方密文</button>
+            <button class="mini" data-copy="aes-pt">复制明文</button>
+          </div>
+        </div>
+        <textarea id="aes-ct-in" placeholder="粘贴密文，hex / base64 自动识别"></textarea>
+        <div class="row">
+          <span class="hint">模式、填充、IV 必须与加密端完全一致</span>
+          <button class="btn primary" id="aes-decrypt">解密 →</button>
+        </div>
+        <textarea id="aes-pt" class="out" readonly placeholder="明文"></textarea>
+      </div>
+    </section>
+
+    <!-- ===================== DES / 3DES ===================== -->
+    <section class="panel hidden" data-panel="des">
+      <div class="panel-head">
+        <h2>DES / 3DES 加解密</h2>
+        <p class="lead">老系统、部分银行和政务接口里仍在用。<b>新项目请用 AES</b>，这里只为联调历史系统。</p>
+      </div>
+
+      <div class="card keys">
+        <div class="card-head">
+          <h3>参数</h3>
+          <div class="card-tools"><button class="mini" id="genDesKey">生成随机密钥</button></div>
+        </div>
+        <div class="kv">
+          <label>算法</label>
+          <select id="des-alg" class="sel">
+            <option value="3des" selected>3DES（TripleDES）</option>
+            <option value="des">DES</option>
+          </select>
+        </div>
+        <div class="kv">
+          <label>密钥 <span class="dim" id="des-key-hint">（3DES：48 位 hex = 24 字节）</span></label>
+          <textarea id="des-key" rows="2" spellcheck="false" placeholder="0123456789abcdef0123456789abcdef0123456789abcdef"></textarea>
+        </div>
+        <div class="kv" id="des-iv-wrap">
+          <label>IV <span class="dim">（CBC 需要，8 字节 = 16 位 hex）</span></label>
+          <textarea id="des-iv" rows="2" spellcheck="false" placeholder="0000000000000000"></textarea>
+        </div>
+        <div class="opts">
+          <div class="opt-group">
+            <span class="opt-label">模式</span>
+            <label class="radio"><input type="radio" name="desmode" value="ecb" checked> ECB <span class="dim">（无 IV）</span></label>
+            <label class="radio"><input type="radio" name="desmode" value="cbc"> CBC</label>
+          </div>
+          <div class="opt-group">
+            <span class="opt-label">输出</span>
+            <label class="radio"><input type="radio" name="desout" value="hex" checked> hex</label>
+            <label class="radio"><input type="radio" name="desout" value="base64"> base64</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>加密 <span class="flow">明文 → 密文</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="des-ct">复制密文</button></div>
+        </div>
+        <textarea id="des-plain" placeholder="要加密的文本"></textarea>
+        <div class="row">
+          <span class="hint">PKCS#7 填充</span>
+          <button class="btn primary" id="des-encrypt">加密 →</button>
+        </div>
+        <textarea id="des-ct" class="out mono" readonly placeholder="密文"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>解密 <span class="flow">密文 → 明文</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-fill-from="des-ct" data-target="des-ct-in">取上方密文</button>
+            <button class="mini" data-copy="des-pt">复制明文</button>
+          </div>
+        </div>
+        <textarea id="des-ct-in" placeholder="粘贴密文"></textarea>
+        <div class="row">
+          <span class="hint">hex / base64 自动识别</span>
+          <button class="btn primary" id="des-decrypt">解密 →</button>
+        </div>
+        <textarea id="des-pt" class="out" readonly placeholder="明文"></textarea>
+      </div>
+    </section>
 
     <!-- ===================== SM2 ===================== -->
     <section class="panel" data-panel="sm2">
@@ -144,6 +303,99 @@
       </div>
     </section>
 
+    <!-- ===================== RSA ===================== -->
+    <section class="panel hidden" data-panel="rsa">
+      <div class="panel-head">
+        <h2>RSA 加解密 / 签名</h2>
+        <p class="lead">PEM 支持 PKCS#1、PKCS#8、SPKI 三种格式，也接受裸 base64 / hex。加密可选 PKCS#1 v1.5 或 OAEP-SHA256，签名可选 PKCS#1 v1.5 或 PSS。</p>
+      </div>
+
+      <div class="card keys">
+        <div class="card-head">
+          <h3>密钥</h3>
+          <div class="card-tools"><button class="mini" id="rsaGenKey">生成 2048 位密钥对</button></div>
+        </div>
+        <div class="kv">
+          <label>公钥 <span class="dim">（PEM / base64 / hex，用于加密和验签）</span></label>
+          <textarea id="rsa-pub" rows="4" class="mono" spellcheck="false" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+        </div>
+        <div class="kv">
+          <label>私钥 <span class="dim">（PEM / base64 / hex，用于解密和签名）</span></label>
+          <textarea id="rsa-priv" rows="4" class="mono" spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>加密 <span class="flow">明文 → 密文</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="rsa-ct">复制密文</button></div>
+        </div>
+        <div class="kv">
+          <label>方案</label>
+          <select id="rsa-enc-scheme" class="sel">
+            <option value="pkcs1" selected>PKCS#1 v1.5（历史接口常用）</option>
+            <option value="oaep">OAEP + SHA-256（推荐）</option>
+          </select>
+        </div>
+        <textarea id="rsa-plain" placeholder="要加密的文本（RSA 只能加密短文本，长内容用 AES + RSA 混合加密）"></textarea>
+        <div class="row">
+          <span class="hint" id="rsa-plain-hint"></span>
+          <button class="btn primary" id="rsa-encrypt">加密 →</button>
+        </div>
+        <textarea id="rsa-ct" class="out mono" readonly placeholder="密文（base64）"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>解密 <span class="flow">密文 → 明文</span></h3>
+          <div class="card-tools">
+            <button class="mini" data-fill-from="rsa-ct" data-target="rsa-ct-in">取上方密文</button>
+            <button class="mini" data-copy="rsa-pt">复制明文</button>
+          </div>
+        </div>
+        <textarea id="rsa-ct-in" rows="3" class="mono" placeholder="粘贴密文（base64 或 hex）"></textarea>
+        <div class="row">
+          <span class="hint">方案必须与加密端一致</span>
+          <button class="btn primary" id="rsa-decrypt">解密 →</button>
+        </div>
+        <textarea id="rsa-pt" class="out" readonly placeholder="明文"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>签名 <span class="flow">消息 + 私钥 → 签名</span></h3>
+          <div class="card-tools"><button class="mini" data-copy="rsa-sign-out">复制签名</button></div>
+        </div>
+        <div class="kv">
+          <label>方案</label>
+          <select id="rsa-sig-scheme" class="sel">
+            <option value="pkcs1" selected>RSASSA-PKCS1-v1_5 + SHA-256</option>
+            <option value="pss">RSASSA-PSS + SHA-256（更安全）</option>
+          </select>
+        </div>
+        <textarea id="rsa-sign-msg" placeholder="待签名的消息"></textarea>
+        <div class="row">
+          <span class="hint">签名输出 base64</span>
+          <button class="btn primary" id="rsa-sign">签名 →</button>
+        </div>
+        <textarea id="rsa-sign-out" class="out mono" readonly placeholder="签名（base64）"></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>验签 <span class="flow">消息 + 签名 + 公钥 → 结果</span></h3>
+          <div class="card-tools"><button class="mini" data-fill-from="rsa-sign-out" data-target="rsa-verify-sig">取上方签名</button></div>
+        </div>
+        <textarea id="rsa-verify-msg" placeholder="待验签的消息"></textarea>
+        <textarea id="rsa-verify-sig" rows="3" class="mono" placeholder="签名（base64 或 hex）"></textarea>
+        <div class="row">
+          <span class="hint">使用上方密钥区的公钥</span>
+          <button class="btn primary" id="rsa-verify">验签 →</button>
+        </div>
+        <div class="result" id="rsa-verify-result">等待验证</div>
+      </div>
+    </section>
+
     <!-- ===================== SM4 ===================== -->
     <section class="panel hidden" data-panel="sm4">
       <div class="panel-head">
@@ -215,27 +467,73 @@
       </div>
     </section>
 
-    <!-- ===================== SM3 ===================== -->
-    <section class="panel hidden" data-panel="sm3">
+    <!-- ===================== 摘要 / HMAC ===================== -->
+    <section class="panel hidden" data-panel="hash">
       <div class="panel-head">
-        <h2>SM3 摘要</h2>
-        <p class="lead">256 位摘要，GB/T 32905 标准。用于完整性校验、口令派生、HMAC。</p>
+        <h2>摘要 / HMAC</h2>
+        <p class="lead">完整性校验、签名前置、接口签名都在用。SM3 是 GB/T 32905 国密标准，其余为通用算法。</p>
       </div>
       <div class="card">
         <div class="card-head">
-          <h3>计算摘要 <span class="flow">文本 → 32 字节 hash</span></h3>
+          <h3>计算摘要 <span class="flow">文本 → hash</span></h3>
           <div class="card-tools"><button class="mini" data-copy="sm3-out">复制</button></div>
+        </div>
+        <div class="kv">
+          <label>算法</label>
+          <select id="hash-alg" class="sel">
+            <option value="sm3" selected>SM3（256 位，国密）</option>
+            <option value="sha256">SHA-256</option>
+            <option value="sha512">SHA-512</option>
+            <option value="sha384">SHA-384</option>
+            <option value="sha1">SHA-1（已不安全，仅作兼容）</option>
+            <option value="md5">MD5（已不安全，仅作兼容）</option>
+          </select>
         </div>
         <textarea id="sm3-in" placeholder="输入要计算摘要的文本…"></textarea>
         <div class="kv">
-          <label>HMAC 密钥 <span class="dim">（可留空，留空则算普通 SM3）</span></label>
-          <input type="text" id="sm3-hmac-key" class="line" spellcheck="false" placeholder="留空即为 SM3(明文)">
+          <label>HMAC 密钥 <span class="dim">（可留空，留空则算普通摘要）</span></label>
+          <input type="text" id="sm3-hmac-key" class="line" spellcheck="false" placeholder="留空即为普通摘要">
         </div>
         <div class="row">
-          <span class="hint">结果 64 位 hex，与国密标准一致</span>
+          <span class="hint" id="hash-hint">SM3 结果 64 位 hex，与国密标准一致</span>
           <button class="btn primary" id="doSm3">计算 →</button>
         </div>
         <textarea id="sm3-out" class="out mono" readonly placeholder="摘要"></textarea>
+      </div>
+    </section>
+
+    <!-- ===================== 编码转换 ===================== -->
+    <section class="panel hidden" data-panel="codec">
+      <div class="panel-head">
+        <h2>编码转换</h2>
+        <p class="lead">联调时卡住的往往不是算法，而是编码。Base64 / Base64URL / Hex / URL / Unicode 转义的双向转换。</p>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>转换</h3>
+          <div class="card-tools"><button class="mini" id="codecSwap">结果回填到输入</button></div>
+        </div>
+        <div class="kv">
+          <label>方式</label>
+          <select id="codec-mode" class="sel">
+            <option value="b64e" selected>文本 → Base64</option>
+            <option value="b64d">Base64 → 文本</option>
+            <option value="b64ue">文本 → Base64URL（JWT 用的那种）</option>
+            <option value="b64ud">Base64URL → 文本</option>
+            <option value="hexe">文本 → Hex</option>
+            <option value="hexd">Hex → 文本</option>
+            <option value="urle">文本 → URL encode</option>
+            <option value="urld">URL decode → 文本</option>
+            <option value="unie">文本 → Unicode 转义（\\uXXXX）</option>
+            <option value="unid">Unicode 转义 → 文本</option>
+          </select>
+        </div>
+        <textarea id="codec-in" rows="6" placeholder="粘贴要转换的内容"></textarea>
+        <div class="row">
+          <span class="hint" id="codec-hint">全部本地计算</span>
+          <button class="btn primary" id="codec-run">转换 →</button>
+        </div>
+        <textarea id="codec-out" class="out mono" rows="6" readonly placeholder="结果"></textarea>
       </div>
     </section>
 
@@ -285,10 +583,39 @@
     </section>
 
     <!-- ===================== 关于 ===================== -->
+    <!-- ===================== JWT ===================== -->
+    <section class="panel hidden" data-panel="jwt">
+      <div class="panel-head">
+        <h2>JWT 解析 / 验签</h2>
+        <p class="lead">粘贴一个 JWT 立刻看到 header 与 payload，并验证签名。HS* 填密钥原文，RS* / PS* 填公钥 PEM。</p>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>解析</h3>
+          <div class="card-tools">
+            <button class="mini" data-copy="jwt-payload">复制 payload</button>
+            <button class="mini" id="jwtClear">清空</button>
+          </div>
+        </div>
+        <textarea id="jwt-in" rows="4" class="mono" spellcheck="false" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.xxxxx"></textarea>
+        <textarea id="jwt-header" class="out mono" rows="4" readonly placeholder="header（解析后自动填入）"></textarea>
+        <textarea id="jwt-payload" class="out mono" rows="6" readonly placeholder="payload（解析后自动填入）"></textarea>
+        <div class="kv">
+          <label>验签密钥 <span class="dim">（HS*：密钥原文；RS* / PS*：公钥 PEM）</span></label>
+          <textarea id="jwt-key" rows="3" class="mono" spellcheck="false" placeholder="your-secret 或 -----BEGIN PUBLIC KEY-----"></textarea>
+        </div>
+        <div class="row">
+          <span class="hint" id="jwt-time">解析后可查看签发与过期时间</span>
+          <button class="btn primary" id="jwt-verify">验签 →</button>
+        </div>
+        <div class="result" id="jwt-result">等待验证</div>
+      </div>
+    </section>
+
     <section class="panel hidden" data-panel="about">
       <div class="panel-head">
         <h2>格式与兼容</h2>
-        <p class="lead">国密联调 90% 的坑都在格式上，这里集中说明。</p>
+        <p class="lead">联调时 90% 的坑都在格式和填充上，这里集中说明各算法的密钥格式、模式差异与常见踩坑点。</p>
       </div>
 
       <div class="card">
@@ -320,11 +647,24 @@
       </div>
 
       <div class="card">
+        <h3>通用算法（AES / DES / RSA / 摘要）</h3>
+        <ul class="doc">
+          <li>AES 支持 ECB / CBC / CTR / CFB / OFB / GCM，密钥 128 / 192 / 256 位；GCM 走浏览器原生 WebCrypto，密文尾部自带 16 字节认证标签</li>
+          <li>CTR / CFB / OFB / GCM 是流模式，不需要填充；ECB 相同明文块会得到相同密文块，生产环境不推荐，仅作兼容</li>
+          <li>3DES 密钥 16 或 24 字节；DES 已不安全，保留只是为对接老系统</li>
+          <li>RSA 支持 PKCS#1 v1.5 与 OAEP-SHA256 加密、PKCS#1 v1.5 与 PSS 签名；PKCS#1 / PKCS#8 / SPKI 三种 PEM 自动识别，不用自己转换</li>
+          <li>RSA 只能加密短数据（2048 位最多约 245 字节），长内容请用 AES 加密正文 + RSA 加密密钥</li>
+          <li>摘要支持 SM3 / SHA-256 / SHA-384 / SHA-512 / SHA-1 / MD5，均可叠加 HMAC；SHA-1 与 MD5 只作兼容，不要用于新系统</li>
+        </ul>
+      </div>
+
+      <div class="card">
         <h3>关于这个工具</h3>
         <ul class="doc">
           <li>全部运算在浏览器里完成，请求里没有任何密钥或明文，服务器只返回静态页面</li>
           <li>无后端、无数据库、无账号、无 cookie；关闭或刷新页面，输入内容即消失</li>
-          <li>算法实现为 sm-crypto 0.3.13（本地引入，不走 CDN），已用 GB/T 32905 / 32907 标准向量校验</li>
+          <li>算法实现为 sm-crypto 0.3.13 + crypto-js 4.2.0 + 浏览器原生 WebCrypto，全部本地引入，不走 CDN</li>
+          <li>国密部分已用 GB/T 32905 / 32907 标准向量校验，AES 已与 openssl 交叉验证</li>
           <li>仅供调试与学习使用，生产环境的密钥管理请交给 HSM / KMS</li>
         </ul>
       </div>
@@ -335,9 +675,11 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="vendor/crypto-js.min.js"></script>
 <script src="vendor/sm2.js"></script>
 <script src="vendor/sm3.js"></script>
 <script src="vendor/sm4.js"></script>
 <script src="app.js"></script>
+<script src="extra.js"></script>
 </body>
 </html>
